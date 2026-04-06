@@ -33,7 +33,7 @@ st.markdown("""
     h1 { 
         font-size: 1.8rem !important; 
         font-weight: 700 !important; 
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #6366f1 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 0 !important;
@@ -57,7 +57,7 @@ st.markdown("""
     [data-testid="stMetricValue"] {
         font-size: 1.5rem !important;
         font-weight: 700 !important;
-        color: #1a1a2e !important;
+        color: #334155 !important;
     }
 
     /* Tabs */
@@ -80,16 +80,14 @@ st.markdown("""
 
     /* Sidebar */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
-    }
-    [data-testid="stSidebar"] * {
-        color: #e2e8f0 !important;
+        background: #f8fafc;
+        border-right: 1px solid #e2e8f0;
     }
     [data-testid="stSidebar"] .stSelectbox label,
     [data-testid="stSidebar"] .stSlider label,
     [data-testid="stSidebar"] .stMultiSelect label,
     [data-testid="stSidebar"] .stDateInput label {
-        color: #94a3b8 !important;
+        color: #64748b !important;
         font-weight: 500;
         font-size: 0.75rem;
         text-transform: uppercase;
@@ -351,8 +349,8 @@ def load_brand_share(start, end):
 
 
 # ── Color palette ──
-COLORS = ["#0f3460", "#16213e", "#1a1a2e", "#533483", "#e94560",
-          "#0ea5e9", "#14b8a6", "#f59e0b", "#8b5cf6", "#ec4899"]
+COLORS = ["#6366f1", "#14b8a6", "#f59e0b", "#ec4899", "#8b5cf6",
+          "#06b6d4", "#f97316", "#84cc16", "#a78bfa", "#fb7185"]
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -360,7 +358,7 @@ COLORS = ["#0f3460", "#16213e", "#1a1a2e", "#533483", "#e94560",
 # ═══════════════════════════════════════════════════════════════
 
 st.title("👗 Fashion Trend Forecasting & Sales Intelligence")
-st.caption(f"Analytics for {start_date.strftime('%b %Y')} — {end_date.strftime('%b %Y')} • Powered by Streamlit + SQLite + Plotly")
+st.caption(f"Analytics for {start_date.strftime('%b %Y')} — {end_date.strftime('%b %Y')}")
 
 df_monthly = load_monthly_sales(channel_filter, start_date, end_date)
 
@@ -407,10 +405,10 @@ with tab1:
             x=df_monthly["month"], y=df_monthly["revenue"],
             mode="lines+markers",
             name="Revenue",
-            line=dict(color="#0f3460", width=2.5),
+            line=dict(color="#6366f1", width=2.5),
             marker=dict(size=6),
             fill="tozeroy",
-            fillcolor="rgba(15,52,96,0.08)",
+            fillcolor="rgba(99,102,241,0.08)",
         ))
         fig_line.update_layout(
             title="Monthly Revenue Trend",
@@ -445,7 +443,7 @@ with tab1:
                 fig_ch = px.pie(
                     df_channel, values="revenue", names="channel",
                     title="Revenue by Channel", hole=0.45,
-                    color_discrete_sequence=["#0f3460", "#e94560", "#14b8a6"],
+                    color_discrete_sequence=["#6366f1", "#14b8a6", "#f59e0b"],
                 )
                 fig_ch.update_layout(height=420, font=dict(family="DM Sans"),
                                      margin=dict(l=20, r=20, t=50, b=20))
@@ -650,8 +648,7 @@ st.divider()
 st.markdown(
     "<div style='text-align:center; color:#94a3b8; font-size:0.75rem;'>"
     "Fashion Trend Forecasting & Sales Intelligence System &nbsp;•&nbsp; "
-    "DBMS Course Project 2026 &nbsp;•&nbsp; "
-    "Built with Streamlit + SQLite + Plotly"
+    "DBMS Course Project 2026"
     "</div>",
     unsafe_allow_html=True,
 )
