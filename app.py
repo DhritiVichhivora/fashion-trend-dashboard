@@ -21,47 +21,56 @@ st.set_page_config(
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+    
+    /* Global dark theme */
     .block-container { padding: 1.5rem 2rem; max-width: 1200px; }
     html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
+    .stApp { background-color: #0f1117; }
 
     h1 { 
         font-size: 1.8rem !important; font-weight: 700 !important; 
-        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #6366f1 100%);
+        background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #c084fc 100%);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         margin-bottom: 0 !important;
     }
 
+    /* Metric cards - dark glass */
     [data-testid="stMetric"] {
-        background: linear-gradient(135deg, #f8f9fc 0%, #eef1f8 100%);
-        border: 1px solid #e2e6f0; border-radius: 12px;
-        padding: 16px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        background: linear-gradient(135deg, #1e1e2e 0%, #252538 100%);
+        border: 1px solid #2e2e45; border-radius: 12px;
+        padding: 16px 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
-    [data-testid="stMetricLabel"] { font-size: 0.8rem !important; font-weight: 600 !important; color: #64748b !important; text-transform: uppercase; letter-spacing: 0.5px; }
-    [data-testid="stMetricValue"] { font-size: 1.5rem !important; font-weight: 700 !important; color: #334155 !important; }
+    [data-testid="stMetricLabel"] { font-size: 0.8rem !important; font-weight: 600 !important; color: #8b8ba3 !important; text-transform: uppercase; letter-spacing: 0.5px; }
+    [data-testid="stMetricValue"] { font-size: 1.5rem !important; font-weight: 700 !important; color: #e2e2f0 !important; }
 
-    .stTabs [data-baseweb="tab-list"] { gap: 4px; background: #f1f5f9; border-radius: 10px; padding: 4px; }
-    .stTabs [data-baseweb="tab"] { border-radius: 8px; padding: 8px 20px; font-weight: 500; font-size: 0.85rem; }
-    .stTabs [aria-selected="true"] { background: white !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    /* Tabs - dark */
+    .stTabs [data-baseweb="tab-list"] { gap: 4px; background: #1a1a2e; border-radius: 10px; padding: 4px; }
+    .stTabs [data-baseweb="tab"] { border-radius: 8px; padding: 8px 20px; font-weight: 500; font-size: 0.85rem; color: #9ca3af; }
+    .stTabs [aria-selected="true"] { background: #252538 !important; box-shadow: 0 2px 6px rgba(0,0,0,0.3); color: #e2e2f0 !important; }
 
-    [data-testid="stSidebar"] { background: #f8fafc; border-right: 1px solid #e2e8f0; }
+    /* Sidebar - darker */
+    [data-testid="stSidebar"] { background: #0a0a14; border-right: 1px solid #1e1e2e; }
     [data-testid="stSidebar"] .stSelectbox label, [data-testid="stSidebar"] .stSlider label,
     [data-testid="stSidebar"] .stMultiSelect label, [data-testid="stSidebar"] .stDateInput label {
-        color: #64748b !important; font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;
+        color: #6b7280 !important; font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;
     }
 
-    hr { border-color: #e2e6f0 !important; margin: 1rem 0 !important; }
-    [data-testid="stPlotlyChart"] { border: 1px solid #e2e6f0; border-radius: 12px; padding: 8px; background: white; box-shadow: 0 1px 4px rgba(0,0,0,0.03); }
+    hr { border-color: #1e1e2e !important; margin: 1rem 0 !important; }
+    
+    /* Chart containers - dark card */
+    [data-testid="stPlotlyChart"] { border: 1px solid #2e2e45; border-radius: 12px; padding: 8px; background: #1a1a2e; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
     [data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; }
 
+    /* Insight boxes - dark variants */
     .insight-box {
-        background: #f0fdf4; border-left: 3px solid #22c55e;
+        background: #0f2918; border-left: 3px solid #22c55e;
         padding: 10px 14px; border-radius: 0 8px 8px 0;
-        font-size: 0.85rem; color: #166534; margin: 8px 0;
+        font-size: 0.85rem; color: #6ee7a0; margin: 8px 0;
     }
     .warning-box {
-        background: #fef3c7; border-left: 3px solid #f59e0b;
+        background: #2a1f05; border-left: 3px solid #f59e0b;
         padding: 10px 14px; border-radius: 0 8px 8px 0;
-        font-size: 0.85rem; color: #92400e; margin: 8px 0;
+        font-size: 0.85rem; color: #fbbf24; margin: 8px 0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -101,10 +110,11 @@ def get_data(query, params=None):
 
 
 # ── Color palette ──
-COLORS = ["#6366f1", "#14b8a6", "#f59e0b", "#ec4899", "#8b5cf6",
-          "#06b6d4", "#f97316", "#84cc16", "#a78bfa", "#fb7185"]
-CHART_TEMPLATE = "plotly_white"
-CHART_FONT = dict(family="DM Sans")
+COLORS = ["#818cf8", "#34d399", "#fbbf24", "#f472b6", "#a78bfa",
+          "#22d3ee", "#fb923c", "#a3e635", "#c084fc", "#fb7185"]
+CHART_TEMPLATE = "plotly_dark"
+CHART_FONT = dict(family="DM Sans", color="#c8c8d8")
+CHART_BG = dict(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(26,26,46,0.5)")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -319,10 +329,10 @@ with tab1:
         fig_line.add_trace(go.Scatter(
             x=df_monthly["month"], y=df_monthly["revenue"],
             mode="lines+markers", name="Revenue",
-            line=dict(color="#6366f1", width=2.5), marker=dict(size=6),
-            fill="tozeroy", fillcolor="rgba(99,102,241,0.08)",
+            line=dict(color="#818cf8", width=2.5), marker=dict(size=6),
+            fill="tozeroy", fillcolor="rgba(129,140,248,0.12)",
         ))
-        fig_line.update_layout(title="Monthly Revenue Trend", template=CHART_TEMPLATE,
+        fig_line.update_layout(title="Monthly Revenue Trend", template=CHART_TEMPLATE, **CHART_BG,
                                height=380, hovermode="x unified", font=CHART_FONT,
                                margin=dict(l=20, r=20, t=50, b=20))
         st.plotly_chart(fig_line, use_container_width=True)
@@ -344,7 +354,7 @@ with tab1:
                     labels={"total_revenue": "Revenue (₹)", "product_name": ""},
                     color_discrete_sequence=COLORS,
                 )
-                fig_top.update_layout(template=CHART_TEMPLATE, height=420, font=CHART_FONT,
+                fig_top.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=420, font=CHART_FONT,
                                       margin=dict(l=20, r=20, t=50, b=20))
                 st.plotly_chart(fig_top, use_container_width=True)
 
@@ -354,9 +364,9 @@ with tab1:
                 fig_ch = px.pie(
                     df_channel, values="revenue", names="channel",
                     title="Revenue by Channel", hole=0.45,
-                    color_discrete_sequence=["#6366f1", "#14b8a6", "#f59e0b"],
+                    color_discrete_sequence=["#818cf8", "#34d399", "#fbbf24"],
                 )
-                fig_ch.update_layout(height=420, font=CHART_FONT, margin=dict(l=20, r=20, t=50, b=20))
+                fig_ch.update_layout(height=420, font=CHART_FONT, **CHART_BG, margin=dict(l=20, r=20, t=50, b=20))
                 st.plotly_chart(fig_ch, use_container_width=True)
 
                 # Channel insight
@@ -382,7 +392,7 @@ with tab1:
                 color_continuous_scale="YlOrRd",
                 labels=dict(x="Month", y="Category", color="Units Sold"),
             )
-            fig_heat.update_layout(height=350, font=CHART_FONT, margin=dict(l=20, r=20, t=20, b=20))
+            fig_heat.update_layout(height=350, font=CHART_FONT, **CHART_BG, margin=dict(l=20, r=20, t=20, b=20))
             st.plotly_chart(fig_heat, use_container_width=True)
 
             # Heatmap insight
@@ -403,7 +413,7 @@ with tab2:
                 title=f"Top {attr_type}s by Units Sold",
                 labels={"attribute_value": attr_type, "units_sold": "Units Sold"},
             )
-            fig_attr.update_layout(template=CHART_TEMPLATE, height=420, font=CHART_FONT,
+            fig_attr.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=420, font=CHART_FONT,
                                    margin=dict(l=20, r=20, t=50, b=20))
             st.plotly_chart(fig_attr, use_container_width=True)
 
@@ -413,7 +423,7 @@ with tab2:
                 title=f"Revenue Share by {attr_type}", hole=0.45,
                 color_discrete_sequence=COLORS,
             )
-            fig_pie.update_layout(height=420, font=CHART_FONT, margin=dict(l=20, r=20, t=50, b=20))
+            fig_pie.update_layout(height=420, font=CHART_FONT, **CHART_BG, margin=dict(l=20, r=20, t=50, b=20))
             st.plotly_chart(fig_pie, use_container_width=True)
 
         # Insight
@@ -440,7 +450,7 @@ with tab3:
             title="Revenue by Region",
             labels={"region": "City", "revenue": "Revenue (₹)"},
         )
-        fig_region.update_layout(template=CHART_TEMPLATE, height=400, font=CHART_FONT,
+        fig_region.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=400, font=CHART_FONT,
                                  margin=dict(l=20, r=20, t=50, b=20))
         st.plotly_chart(fig_region, use_container_width=True)
 
@@ -459,7 +469,7 @@ with tab3:
                 labels={"total_orders": "Orders", "revenue": "Revenue (₹)"},
                 color_discrete_sequence=COLORS,
             )
-            fig_scatter.update_layout(template=CHART_TEMPLATE, height=400, showlegend=False,
+            fig_scatter.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=400, showlegend=False,
                                       font=CHART_FONT, margin=dict(l=20, r=20, t=50, b=20))
             st.plotly_chart(fig_scatter, use_container_width=True)
         with col2:
@@ -485,7 +495,7 @@ with tab4:
                 title="Stock Deficit by Product",
                 labels={"product_name": "", "deficit": "Units Short"},
             )
-            fig_risk.update_layout(template=CHART_TEMPLATE, height=400, xaxis_tickangle=-45,
+            fig_risk.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=400, xaxis_tickangle=-45,
                                    font=CHART_FONT, margin=dict(l=20, r=20, t=50, b=80))
             st.plotly_chart(fig_risk, use_container_width=True)
 
@@ -516,7 +526,7 @@ with tab4:
                 title="Dead Stock by Brand",
                 labels={"brand": "", "total_stock": "Stuck Units", "items": "Products"},
             )
-            fig_dead.update_layout(template=CHART_TEMPLATE, height=350, font=CHART_FONT,
+            fig_dead.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=350, font=CHART_FONT,
                                    margin=dict(l=20, r=20, t=50, b=20))
             st.plotly_chart(fig_dead, use_container_width=True)
 
@@ -542,7 +552,7 @@ with tab5:
                     "linked_revenue": "Linked Revenue (₹)", "linked_sales": "Sales Count"},
             hover_name="keyword", color_discrete_sequence=COLORS,
         )
-        fig_corr.update_layout(template=CHART_TEMPLATE, height=500, showlegend=False,
+        fig_corr.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=500, showlegend=False,
                                font=CHART_FONT, margin=dict(l=20, r=20, t=50, b=20))
         st.plotly_chart(fig_corr, use_container_width=True)
 
@@ -569,9 +579,9 @@ with tab6:
                 df_seg, x="segment", y="revenue", color="segment",
                 title="Revenue by Segment",
                 labels={"segment": "", "revenue": "Revenue (₹)"},
-                color_discrete_sequence=["#14b8a6", "#06b6d4", "#8b5cf6", "#ec4899"],
+                color_discrete_sequence=["#34d399", "#22d3ee", "#a78bfa", "#f472b6"],
             )
-            fig_seg.update_layout(template=CHART_TEMPLATE, height=400, showlegend=False,
+            fig_seg.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=400, showlegend=False,
                                   font=CHART_FONT, margin=dict(l=20, r=20, t=50, b=20))
             st.plotly_chart(fig_seg, use_container_width=True)
 
@@ -580,9 +590,9 @@ with tab6:
                 df_seg, x="segment", y="avg_order_value", color="segment",
                 title="Avg Order Value by Segment",
                 labels={"segment": "", "avg_order_value": "AOV (₹)"},
-                color_discrete_sequence=["#14b8a6", "#06b6d4", "#8b5cf6", "#ec4899"],
+                color_discrete_sequence=["#34d399", "#22d3ee", "#a78bfa", "#f472b6"],
             )
-            fig_aov.update_layout(template=CHART_TEMPLATE, height=400, showlegend=False,
+            fig_aov.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=400, showlegend=False,
                                   font=CHART_FONT, margin=dict(l=20, r=20, t=50, b=20))
             st.plotly_chart(fig_aov, use_container_width=True)
 
@@ -602,7 +612,7 @@ with tab6:
                 title="Brand Market Share (by Revenue)",
                 color="revenue", color_continuous_scale="Purples",
             )
-            fig_brand.update_layout(height=400, font=CHART_FONT, margin=dict(l=20, r=20, t=50, b=20))
+            fig_brand.update_layout(height=400, font=CHART_FONT, **CHART_BG, margin=dict(l=20, r=20, t=50, b=20))
             st.plotly_chart(fig_brand, use_container_width=True)
 
         st.dataframe(
