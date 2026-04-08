@@ -1,5 +1,8 @@
 """
 Fashion Trend Forecasting & Sales Intelligence Dashboard
+=========================================================
+ONLINE VERSION: Reads directly from bundled SQLite database.
+For Streamlit Cloud deployment (no FastAPI needed).
 """
 
 import streamlit as st
@@ -8,100 +11,306 @@ import plotly.graph_objects as go
 import pandas as pd
 import sqlite3
 import os
-from datetime import datetime, date
+from datetime import datetime
 
 st.set_page_config(
-    page_title="Fashion Trend Intelligence",
-    page_icon="👗",
+    page_title="Fashion Trend Forecasting & Sales Intelligence",
+    page_icon="◆",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ── CSS ──
-st.markdown("""
+# ═══════════════════════════════════════════════════════════════
+# THEME — Vogue Editorial
+# ═══════════════════════════════════════════════════════════════
+
+VOGUE = {
+    "bg":         "#FAF7F2",
+    "card":       "#FFFFFF",
+    "ink":        "#0A0A0A",
+    "ink_soft":   "#3A3A3A",
+    "ink_mute":   "#8C8C8C",
+    "accent":     "#FF1F6D",
+    "accent_dk":  "#C8024B",
+    "border":     "#E5E1DA",
+}
+
+CHART_COLORS = ["#0A0A0A", "#FF1F6D", "#C8024B", "#8C8C8C",
+                "#3A3A3A", "#FF7BA8", "#FFB8CE", "#5A5A5A",
+                "#E5E1DA", "#FFD9E5"]
+
+st.markdown(f"""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
-    
-    /* Global dark theme */
-    .block-container { padding: 1.5rem 2rem; max-width: 1200px; }
-    html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
-    .stApp { background-color: #0f1117; }
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap');
 
-    h1 { 
-        font-size: 1.8rem !important; font-weight: 700 !important; 
-        background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #c084fc 100%);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        margin-bottom: 0 !important;
-    }
+.block-container {{ padding: 1.2rem 2rem 3rem; max-width: 1320px; }}
+html, body, [class*="css"], p, span, div, label {{ font-family: 'Inter', sans-serif !important; }}
+.stApp {{ background: {VOGUE['bg']}; }}
 
-    /* Metric cards - dark glass */
-    [data-testid="stMetric"] {
-        background: linear-gradient(135deg, #1e1e2e 0%, #252538 100%);
-        border: 1px solid #2e2e45; border-radius: 12px;
-        padding: 16px 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-    [data-testid="stMetricLabel"] { font-size: 0.8rem !important; font-weight: 600 !important; color: #8b8ba3 !important; text-transform: uppercase; letter-spacing: 0.5px; }
-    [data-testid="stMetricValue"] { font-size: 1.5rem !important; font-weight: 700 !important; color: #e2e2f0 !important; }
+h1 {{
+    font-family: 'Playfair Display', serif !important;
+    font-size: 2.6rem !important;
+    font-weight: 900 !important;
+    color: {VOGUE['ink']} !important;
+    margin: 0 0 0.2rem 0 !important;
+    letter-spacing: -1px;
+    line-height: 1.05 !important;
+}}
 
-    /* Tabs - dark */
-    .stTabs [data-baseweb="tab-list"] { gap: 4px; background: #1a1a2e; border-radius: 10px; padding: 4px; }
-    .stTabs [data-baseweb="tab"] { border-radius: 8px; padding: 8px 20px; font-weight: 500; font-size: 0.85rem; color: #9ca3af; }
-    .stTabs [aria-selected="true"] { background: #252538 !important; box-shadow: 0 2px 6px rgba(0,0,0,0.3); color: #e2e2f0 !important; }
+.stCaption, [data-testid="stCaptionContainer"] {{
+    color: {VOGUE['ink_mute']} !important;
+    font-size: 0.85rem !important;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-weight: 500;
+}}
 
-    /* Sidebar - darker */
-    [data-testid="stSidebar"] { background: #0a0a14; border-right: 1px solid #1e1e2e; }
-    [data-testid="stSidebar"] .stSelectbox label, [data-testid="stSidebar"] .stSlider label,
-    [data-testid="stSidebar"] .stMultiSelect label, [data-testid="stSidebar"] .stDateInput label {
-        color: #6b7280 !important; font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;
-    }
+h2, h3, h4 {{ color: {VOGUE['ink']} !important; }}
+h3 {{
+    font-family: 'Playfair Display', serif !important;
+    font-size: 1.3rem !important;
+    font-weight: 700 !important;
+    margin: 1.5rem 0 0.4rem 0 !important;
+    letter-spacing: -0.3px;
+}}
 
-    hr { border-color: #1e1e2e !important; margin: 1rem 0 !important; }
-    
-    /* Chart containers - dark card */
-    [data-testid="stPlotlyChart"] { border: 1px solid #2e2e45; border-radius: 12px; padding: 8px; background: #1a1a2e; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-    [data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; }
+[data-testid="stMetric"] {{
+    background: {VOGUE['card']};
+    border: 1px solid {VOGUE['border']};
+    border-radius: 4px;
+    padding: 18px 22px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    transition: all 0.2s;
+}}
+[data-testid="stMetric"]:hover {{
+    border-color: {VOGUE['accent']};
+    box-shadow: 0 4px 14px rgba(255, 31, 109, 0.12);
+}}
+[data-testid="stMetricLabel"] {{
+    font-size: 0.65rem !important;
+    font-weight: 700 !important;
+    color: {VOGUE['ink_mute']} !important;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}}
+[data-testid="stMetricValue"] {{
+    font-family: 'Playfair Display', serif !important;
+    font-size: 2rem !important;
+    font-weight: 900 !important;
+    color: {VOGUE['ink']} !important;
+    letter-spacing: -1px;
+}}
 
-    /* Insight boxes - dark variants */
-    .insight-box {
-        background: #0f2918; border-left: 3px solid #22c55e;
-        padding: 10px 14px; border-radius: 0 8px 8px 0;
-        font-size: 0.85rem; color: #6ee7a0; margin: 8px 0;
-    }
-    .warning-box {
-        background: #2a1f05; border-left: 3px solid #f59e0b;
-        padding: 10px 14px; border-radius: 0 8px 8px 0;
-        font-size: 0.85rem; color: #fbbf24; margin: 8px 0;
-    }
+.stTabs [data-baseweb="tab-list"] {{
+    gap: 0;
+    background: transparent;
+    border-bottom: 2px solid {VOGUE['ink']};
+    border-radius: 0;
+    padding: 0;
+}}
+.stTabs [data-baseweb="tab"] {{
+    border-radius: 0;
+    padding: 12px 22px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    color: {VOGUE['ink_mute']} !important;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    background: transparent;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+}}
+.stTabs [aria-selected="true"] {{
+    background: transparent !important;
+    color: {VOGUE['ink']} !important;
+    border-bottom: 3px solid {VOGUE['accent']} !important;
+}}
+
+[data-testid="stSidebar"] {{
+    background: {VOGUE['ink']};
+}}
+[data-testid="stSidebar"] h2 {{
+    font-family: 'Playfair Display', serif !important;
+    color: {VOGUE['bg']} !important;
+    font-size: 1.4rem !important;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+}}
+[data-testid="stSidebar"] .stCaption {{
+    color: {VOGUE['ink_mute']} !important;
+    letter-spacing: 2px;
+}}
+[data-testid="stSidebar"] label {{
+    color: {VOGUE['bg']} !important;
+    font-weight: 700 !important;
+    font-size: 0.65rem !important;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}}
+[data-testid="stSidebar"] .stSelectbox > div > div,
+[data-testid="stSidebar"] .stMultiSelect > div > div {{
+    background: #1A1A1A;
+    border: 1px solid #3A3A3A;
+    color: {VOGUE['bg']};
+    border-radius: 2px;
+}}
+
+[data-testid="stPlotlyChart"] {{
+    background: {VOGUE['card']};
+    border: 1px solid {VOGUE['border']};
+    border-radius: 4px;
+    padding: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}}
+
+[data-testid="stDataFrame"] {{
+    border-radius: 4px;
+    border: 1px solid {VOGUE['border']};
+    overflow: hidden;
+}}
+
+hr {{ border-color: {VOGUE['ink']} !important; margin: 1.5rem 0 !important; opacity: 0.15; }}
+
+.stButton > button {{
+    background: {VOGUE['ink']};
+    color: {VOGUE['bg']};
+    border: 1px solid {VOGUE['ink']};
+    border-radius: 2px;
+    font-weight: 700;
+    padding: 10px 22px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-size: 0.7rem;
+}}
+.stButton > button:hover {{
+    background: {VOGUE['accent']};
+    border-color: {VOGUE['accent']};
+    color: white;
+}}
+
+.story-card {{
+    background: {VOGUE['card']};
+    border: 1px solid {VOGUE['border']};
+    border-left: 4px solid {VOGUE['accent']};
+    border-radius: 2px;
+    padding: 18px 22px;
+    margin: 8px 0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}}
+.story-card .label {{
+    color: {VOGUE['accent']};
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin: 0 0 8px 0;
+}}
+.story-card .body {{
+    color: {VOGUE['ink']};
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin: 0;
+}}
+.story-card .body strong {{
+    color: {VOGUE['accent']};
+    font-weight: 700;
+}}
+
+.insight-box {{
+    background: rgba(255, 31, 109, 0.06);
+    border-left: 3px solid {VOGUE['accent']};
+    padding: 12px 16px;
+    font-size: 0.85rem;
+    color: {VOGUE['ink']};
+    margin: 10px 0;
+}}
+.insight-box strong {{ color: {VOGUE['accent']}; font-weight: 700; }}
+
+.chart-subtitle {{
+    color: {VOGUE['ink_mute']};
+    font-size: 0.78rem;
+    margin: -4px 0 12px 0;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-style: italic;
+}}
+
+.api-status {{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: {VOGUE['ink']};
+    color: white;
+    padding: 4px 12px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+}}
+.api-status::before {{
+    content: '';
+    width: 6px; height: 6px;
+    background: {VOGUE['accent']};
+    border-radius: 50%;
+    box-shadow: 0 0 8px {VOGUE['accent']};
+}}
+
+.header-strip {{
+    border-top: 4px solid {VOGUE['ink']};
+    border-bottom: 1px solid {VOGUE['ink']};
+    padding: 1.4rem 0 1rem 0;
+    margin-bottom: 1.5rem;
+}}
+.header-meta {{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: {VOGUE['ink_mute']};
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-weight: 600;
+}}
+.header-meta .right {{ color: {VOGUE['accent']}; }}
 </style>
 """, unsafe_allow_html=True)
 
 
-# ── Helpers ──
-def fmt_inr(amount):
-    """Format amount in Indian style: ₹12.5L, ₹3.2Cr, ₹45K"""
-    if amount >= 1_00_00_000:
-        return f"₹{amount/1_00_00_000:.1f}Cr"
-    elif amount >= 1_00_000:
-        return f"₹{amount/1_00_000:.1f}L"
+# ═══════════════════════════════════════════════════════════════
+# HELPERS
+# ═══════════════════════════════════════════════════════════════
+
+def fmt_money(amount):
+    if amount >= 1_000_000:
+        return f"${amount/1_000_000:.2f}M"
     elif amount >= 1_000:
-        return f"₹{amount/1_000:.1f}K"
-    else:
-        return f"₹{amount:,.0f}"
+        return f"${amount/1_000:.1f}K"
+    return f"${amount:,.0f}"
 
 def insight(text):
-    st.markdown(f'<div class="insight-box">💡 {text}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="insight-box">◆ {text}</div>', unsafe_allow_html=True)
 
-def warning_insight(text):
-    st.markdown(f'<div class="warning-box">⚠️ {text}</div>', unsafe_allow_html=True)
+def story_card(label, body):
+    st.markdown(
+        f'<div class="story-card"><p class="label">{label}</p><p class="body">{body}</p></div>',
+        unsafe_allow_html=True,
+    )
+
+def chart_subtitle(text):
+    st.markdown(f'<div class="chart-subtitle">{text}</div>', unsafe_allow_html=True)
 
 
-# ── DB ──
+# ═══════════════════════════════════════════════════════════════
+# DATABASE
+# ═══════════════════════════════════════════════════════════════
+
 DB_PATH = os.path.join(os.path.dirname(__file__), "fashion_trend.db")
 
-def get_data(query, params=None):
+def query(sql, params=None):
     try:
         conn = sqlite3.connect(DB_PATH)
-        df = pd.read_sql_query(query, conn, params=params)
+        df = pd.read_sql_query(sql, conn, params=params)
         conn.close()
         return df
     except Exception as e:
@@ -109,524 +318,647 @@ def get_data(query, params=None):
         return pd.DataFrame()
 
 
-# ── Color palette ──
-COLORS = ["#818cf8", "#34d399", "#fbbf24", "#f472b6", "#a78bfa",
-          "#22d3ee", "#fb923c", "#a3e635", "#c084fc", "#fb7185"]
-CHART_TEMPLATE = "plotly_dark"
-CHART_FONT = dict(family="DM Sans", color="#c8c8d8")
-CHART_BG = dict(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(26,26,46,0.5)")
-
-
 # ═══════════════════════════════════════════════════════════════
 # SIDEBAR
 # ═══════════════════════════════════════════════════════════════
 
 with st.sidebar:
-    st.markdown("## 👗 Fashion Intelligence")
-    st.caption("Trend Forecasting & Sales Analytics")
-    st.divider()
+    st.markdown("## ◆ FASHION INTEL")
+    st.caption("Trend Forecasting & Sales")
+    st.markdown('<span class="api-status">DB Connected</span>', unsafe_allow_html=True)
+    st.markdown("---")
 
-    if st.button("🔄  Refresh Data", use_container_width=True, type="primary"):
+    if st.button("Refresh Data", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
-    st.divider()
+    st.markdown("---")
     st.markdown("##### Filters")
 
-    date_range = st.date_input(
-        "📅 Date Range",
-        value=(date(2023, 1, 1), date(2025, 12, 31)),
-        min_value=date(2023, 1, 1), max_value=date(2025, 12, 31),
+    top_n = st.slider("Top N Items", 5, 20, 10)
+
+    @st.cache_data(ttl=600)
+    def get_countries():
+        df = query("SELECT DISTINCT country FROM stores ORDER BY country")
+        return df["country"].tolist() if not df.empty else []
+
+    countries = get_countries()
+    selected_countries = st.multiselect("Countries", countries, default=countries)
+
+    selected_categories = st.multiselect(
+        "Category",
+        ["Feminine", "Masculine", "Children"],
+        default=["Feminine", "Masculine", "Children"],
     )
-    if isinstance(date_range, tuple) and len(date_range) == 2:
-        start_date, end_date = date_range
-    else:
-        start_date, end_date = date(2023, 1, 1), date(2025, 12, 31)
 
-    attr_type = st.selectbox("🏷️ Attribute Type", ["Color", "Style", "Material", "Season", "Fit"])
-    top_n = st.slider("🏆 Top N Products", 5, 20, 10)
-    channel_filter = st.multiselect("📱 Sales Channel", ["Online", "Store", "App"], default=["Online", "Store", "App"])
-
-    categories = get_data("SELECT category_name FROM categories ORDER BY category_name")
-    if not categories.empty:
-        cat_list = categories["category_name"].tolist()
-        selected_cats = st.multiselect("📂 Categories", cat_list, default=cat_list)
-    else:
-        selected_cats = []
-
-    st.divider()
-    st.markdown("<div style='text-align:center; opacity:0.5; font-size:0.7rem;'>DBMS Course Project 2026</div>", unsafe_allow_html=True)
+    st.markdown("---")
+    st.markdown(
+        f"<div style='text-align:center; color:{VOGUE['ink_mute']}; font-size:0.65rem; "
+        f"text-transform:uppercase; letter-spacing:2px;'>"
+        "DBMS Project &middot; 2026</div>",
+        unsafe_allow_html=True,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════
-# DATA LOADING
+# DATA LOADERS (cached SQL queries)
 # ═══════════════════════════════════════════════════════════════
 
 @st.cache_data(ttl=300)
-def load_monthly_sales(channels, start, end):
-    channels = list(channels)
-    if not channels: return pd.DataFrame()
-    ph = ",".join(["?" for _ in channels])
-    return get_data(f"""
-        SELECT strftime('%Y-%m', sale_date) AS month, COUNT(*) AS total_orders,
-               SUM(quantity) AS units_sold, ROUND(SUM(total_amount), 2) AS revenue
-        FROM sales WHERE channel IN ({ph}) AND sale_date >= ? AND sale_date <= ?
+def load_monthly_sales():
+    return query("""
+        SELECT strftime('%Y-%m', transaction_date) AS month,
+               COUNT(DISTINCT invoice_id) AS total_invoices,
+               SUM(quantity) AS units_sold,
+               ROUND(SUM(line_total), 2) AS revenue
+        FROM transactions WHERE transaction_type = 'Sale'
         GROUP BY month ORDER BY month
-    """, channels + [str(start), str(end)])
+    """)
 
 @st.cache_data(ttl=300)
-def load_top_products(n, start, end, cats):
-    if not cats: return pd.DataFrame()
-    ph = ",".join(["?" for _ in cats])
-    return get_data(f"""
-        SELECT p.product_id, p.product_name, c.category_name,
-               ROUND(SUM(s.total_amount), 2) AS total_revenue, SUM(s.quantity) AS total_units
-        FROM sales s JOIN products p ON s.product_id = p.product_id
-        JOIN categories c ON p.category_id = c.category_id
-        WHERE s.sale_date >= ? AND s.sale_date <= ? AND c.category_name IN ({ph})
-        GROUP BY p.product_id, p.product_name, c.category_name
+def load_top_products(limit):
+    return query("""
+        SELECT p.product_id, p.product_name, p.category, p.sub_category,
+               SUM(t.quantity) AS units_sold,
+               ROUND(SUM(t.line_total), 2) AS total_revenue
+        FROM transactions t
+        JOIN products p ON t.product_id = p.product_id
+        WHERE t.transaction_type = 'Sale'
+        GROUP BY p.product_id, p.product_name, p.category, p.sub_category
         ORDER BY total_revenue DESC LIMIT ?
-    """, [str(start), str(end)] + list(cats) + [n])
+    """, [limit])
 
 @st.cache_data(ttl=300)
-def load_trend_correlation():
-    return get_data("""
-        SELECT t.keyword, ROUND(AVG(t.trend_score), 2) AS avg_trend_score,
-               COUNT(DISTINCT s.sale_id) AS linked_sales,
-               ROUND(SUM(s.total_amount), 2) AS linked_revenue
-        FROM trends t JOIN product_trend_map ptm ON t.trend_id = ptm.trend_id
-        JOIN sales s ON ptm.product_id = s.product_id
-        GROUP BY t.keyword ORDER BY avg_trend_score DESC LIMIT 15
+def load_country_sales():
+    return query("""
+        SELECT s.country,
+               COUNT(DISTINCT t.invoice_id) AS total_invoices,
+               SUM(t.quantity) AS units_sold,
+               ROUND(SUM(t.line_total), 2) AS revenue
+        FROM transactions t
+        JOIN stores s ON t.store_id = s.store_id
+        WHERE t.transaction_type = 'Sale'
+        GROUP BY s.country ORDER BY revenue DESC
     """)
 
 @st.cache_data(ttl=300)
-def load_region_demand(start, end):
-    return get_data("""
-        SELECT cu.region, COUNT(s.sale_id) AS total_orders,
-               SUM(s.quantity) AS units_sold, ROUND(SUM(s.total_amount), 2) AS revenue
-        FROM sales s JOIN customers cu ON s.customer_id = cu.customer_id
-        WHERE s.sale_date >= ? AND s.sale_date <= ?
-        GROUP BY cu.region ORDER BY revenue DESC
-    """, [str(start), str(end)])
-
-@st.cache_data(ttl=300)
-def load_inventory_risk():
-    return get_data("""
-        SELECT p.product_id, p.product_name, p.brand,
-               i.stock_quantity, i.reorder_level, i.warehouse_location,
-               (i.reorder_level - i.stock_quantity) AS deficit
-        FROM inventory i JOIN products p ON i.product_id = p.product_id
-        WHERE i.stock_quantity < i.reorder_level ORDER BY deficit DESC
+def load_category_sales():
+    return query("""
+        SELECT p.category,
+               COUNT(t.transaction_id) AS transactions,
+               SUM(t.quantity) AS units_sold,
+               ROUND(SUM(t.line_total), 2) AS revenue
+        FROM transactions t
+        JOIN products p ON t.product_id = p.product_id
+        WHERE t.transaction_type = 'Sale'
+        GROUP BY p.category ORDER BY revenue DESC
     """)
 
 @st.cache_data(ttl=300)
-def load_dead_stock():
-    return get_data("""
-        SELECT p.product_id, p.product_name, p.brand,
-               i.stock_quantity, i.warehouse_location
-        FROM products p JOIN inventory i ON p.product_id = i.product_id
-        LEFT JOIN sales s ON p.product_id = s.product_id AND s.sale_date >= date('now', '-90 days')
-        WHERE i.stock_quantity > 0
-        GROUP BY p.product_id, p.product_name, p.brand, i.stock_quantity, i.warehouse_location
-        HAVING COUNT(s.sale_id) = 0 ORDER BY i.stock_quantity DESC
+def load_top_stores(limit):
+    return query("""
+        SELECT s.store_id, s.store_name, s.city, s.country,
+               COUNT(DISTINCT t.invoice_id) AS total_invoices,
+               ROUND(SUM(t.line_total), 2) AS revenue
+        FROM stores s
+        JOIN transactions t ON s.store_id = t.store_id
+        WHERE t.transaction_type = 'Sale'
+        GROUP BY s.store_id, s.store_name, s.city, s.country
+        ORDER BY revenue DESC LIMIT ?
+    """, [limit])
+
+@st.cache_data(ttl=300)
+def load_discount_effectiveness():
+    return query("""
+        SELECT 
+            CASE WHEN discount = 0 THEN 'No Discount'
+                 WHEN discount BETWEEN 0.01 AND 0.20 THEN 'Low (1-20%)'
+                 WHEN discount BETWEEN 0.21 AND 0.40 THEN 'Medium (21-40%)'
+                 ELSE 'High (>40%)'
+            END AS discount_bucket,
+            COUNT(*) AS transactions,
+            ROUND(SUM(line_total), 2) AS revenue
+        FROM transactions WHERE transaction_type = 'Sale'
+        GROUP BY discount_bucket ORDER BY revenue DESC
     """)
 
 @st.cache_data(ttl=300)
-def load_attribute_trends(atype, start, end):
-    return get_data("""
-        SELECT a.attribute_type, a.attribute_value, SUM(s.quantity) AS units_sold,
-               ROUND(SUM(s.total_amount), 2) AS revenue
-        FROM sales s JOIN product_attributes pa ON s.product_id = pa.product_id
-        JOIN attributes a ON pa.attribute_id = a.attribute_id
-        WHERE a.attribute_type = ? AND s.sale_date >= ? AND s.sale_date <= ?
-        GROUP BY a.attribute_type, a.attribute_value ORDER BY units_sold DESC
-    """, [atype, str(start), str(end)])
+def load_top_customers(limit):
+    return query("""
+        SELECT c.customer_id, c.name, c.country, c.gender, c.age,
+               COUNT(DISTINCT t.invoice_id) AS total_orders,
+               ROUND(SUM(t.line_total), 2) AS lifetime_value
+        FROM customers c
+        JOIN transactions t ON c.customer_id = t.customer_id
+        WHERE t.transaction_type = 'Sale'
+        GROUP BY c.customer_id, c.name, c.country, c.gender, c.age
+        ORDER BY lifetime_value DESC LIMIT ?
+    """, [limit])
 
 @st.cache_data(ttl=300)
-def load_segment_data(start, end):
-    return get_data("""
-        SELECT cu.segment, COUNT(DISTINCT cu.customer_id) AS customers,
-               COUNT(s.sale_id) AS orders, ROUND(SUM(s.total_amount), 2) AS revenue,
-               ROUND(AVG(s.total_amount), 2) AS avg_order_value
-        FROM sales s JOIN customers cu ON s.customer_id = cu.customer_id
-        WHERE s.sale_date >= ? AND s.sale_date <= ?
-        GROUP BY cu.segment ORDER BY revenue DESC
-    """, [str(start), str(end)])
+def load_payment_breakdown():
+    return query("""
+        SELECT payment_method, COUNT(*) AS transactions,
+               ROUND(SUM(line_total), 2) AS revenue,
+               ROUND(SUM(line_total) * 100.0 / 
+                     (SELECT SUM(line_total) FROM transactions WHERE transaction_type = 'Sale'), 2) AS pct_of_total
+        FROM transactions WHERE transaction_type = 'Sale'
+        GROUP BY payment_method ORDER BY revenue DESC
+    """)
 
 @st.cache_data(ttl=300)
-def load_channel_data(start, end):
-    return get_data("""
-        SELECT channel, COUNT(*) AS orders, SUM(quantity) AS units_sold,
-               ROUND(SUM(total_amount), 2) AS revenue, ROUND(AVG(discount_percent), 1) AS avg_discount
-        FROM sales WHERE sale_date >= ? AND sale_date <= ?
-        GROUP BY channel ORDER BY revenue DESC
-    """, [str(start), str(end)])
+def load_sales_vs_returns():
+    return query("""
+        SELECT transaction_type, COUNT(*) AS count_transactions,
+               ROUND(SUM(line_total), 2) AS total_value
+        FROM transactions GROUP BY transaction_type
+    """)
 
 @st.cache_data(ttl=300)
-def load_brand_share(start, end):
-    return get_data("""
-        SELECT p.brand, COUNT(DISTINCT p.product_id) AS products,
-               SUM(s.quantity) AS units_sold, ROUND(SUM(s.total_amount), 2) AS revenue
-        FROM sales s JOIN products p ON s.product_id = p.product_id
-        WHERE s.sale_date >= ? AND s.sale_date <= ?
-        GROUP BY p.brand ORDER BY revenue DESC
-    """, [str(start), str(end)])
+def load_sub_category():
+    return query("""
+        SELECT p.category, p.sub_category,
+               ROUND(SUM(t.line_total), 2) AS revenue
+        FROM transactions t
+        JOIN products p ON t.product_id = p.product_id
+        WHERE t.transaction_type = 'Sale'
+        GROUP BY p.category, p.sub_category
+        ORDER BY p.category, revenue DESC
+    """)
 
 @st.cache_data(ttl=300)
-def load_seasonal_heatmap(start, end):
-    return get_data("""
-        SELECT CAST(strftime('%m', s.sale_date) AS INTEGER) AS month_num,
-               c.category_name, SUM(s.quantity) AS units_sold
-        FROM sales s JOIN products p ON s.product_id = p.product_id
-        JOIN categories c ON p.category_id = c.category_id
-        WHERE s.sale_date >= ? AND s.sale_date <= ?
-        GROUP BY month_num, c.category_name ORDER BY month_num
-    """, [str(start), str(end)])
+def load_demographics():
+    return query("""
+        SELECT c.gender,
+               CASE WHEN c.age < 25 THEN '18-24'
+                    WHEN c.age BETWEEN 25 AND 34 THEN '25-34'
+                    WHEN c.age BETWEEN 35 AND 44 THEN '35-44'
+                    WHEN c.age BETWEEN 45 AND 54 THEN '45-54'
+                    ELSE '55+' END AS age_group,
+               ROUND(SUM(t.line_total), 2) AS revenue
+        FROM customers c
+        JOIN transactions t ON c.customer_id = t.customer_id
+        WHERE t.transaction_type = 'Sale'
+        GROUP BY c.gender, age_group ORDER BY c.gender, age_group
+    """)
+
+@st.cache_data(ttl=300)
+def load_stores():
+    return query("SELECT * FROM stores")
+
+@st.cache_data(ttl=300)
+def load_yoy():
+    return query("""
+        SELECT CAST(strftime('%Y', transaction_date) AS INTEGER) AS year,
+               CAST(strftime('%m', transaction_date) AS INTEGER) AS month,
+               ROUND(SUM(line_total), 2) AS revenue
+        FROM transactions WHERE transaction_type = 'Sale'
+        GROUP BY year, month ORDER BY year, month
+    """)
+
+@st.cache_data(ttl=300)
+def load_dow_heatmap():
+    df = query("""
+        SELECT strftime('%w', transaction_date) AS day_num,
+               CAST(strftime('%H', transaction_date) AS INTEGER) AS hour,
+               COUNT(*) AS transaction_count
+        FROM transactions WHERE transaction_type = 'Sale'
+        GROUP BY day_num, hour ORDER BY day_num, hour
+    """)
+    if not df.empty:
+        day_map = {'0':'Sunday','1':'Monday','2':'Tuesday','3':'Wednesday',
+                   '4':'Thursday','5':'Friday','6':'Saturday'}
+        df["day_name"] = df["day_num"].map(day_map)
+    return df
+
+@st.cache_data(ttl=300)
+def load_cumulative():
+    df = load_monthly_sales()
+    if not df.empty:
+        df = df.copy()
+        df["cumulative_revenue"] = df["revenue"].cumsum()
+    return df
+
+
+CHART_TEMPLATE = "plotly_white"
+CHART_FONT = dict(family="Inter", color=VOGUE['ink'], size=11)
+CHART_BG = dict(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+
+
+def style_fig(fig, height=380):
+    fig.update_layout(
+        template=CHART_TEMPLATE, **CHART_BG,
+        height=height, font=CHART_FONT,
+        margin=dict(l=15, r=15, t=15, b=15),
+        xaxis=dict(gridcolor=VOGUE['border'], linecolor=VOGUE['ink'], linewidth=1, zeroline=False),
+        yaxis=dict(gridcolor=VOGUE['border'], linecolor=VOGUE['ink'], linewidth=1, zeroline=False),
+    )
+    return fig
 
 
 # ═══════════════════════════════════════════════════════════════
-# HEADER & KPI
+# HEADER
 # ═══════════════════════════════════════════════════════════════
 
-st.title("👗 Fashion Trend Forecasting & Sales Intelligence")
-st.caption(f"Analytics for {start_date.strftime('%b %Y')} — {end_date.strftime('%b %Y')}")
+st.markdown(
+    f'''
+    <div class="header-strip">
+        <div class="header-meta">
+            <span>VOL. 1 &nbsp;&middot;&nbsp; ISSUE 01 &nbsp;&middot;&nbsp; {datetime.now().strftime("%B %Y").upper()}</span>
+            <span class="right">◆ FASHION INTELLIGENCE</span>
+        </div>
+    </div>
+    ''',
+    unsafe_allow_html=True,
+)
 
-df_monthly = load_monthly_sales(channel_filter, start_date, end_date)
+st.markdown("# Fashion Trend Forecasting & Sales Intelligence")
+st.caption("Real-time analytics dashboard")
+st.markdown("---")
+
+
+# ═══════════════════════════════════════════════════════════════
+# DATA + KPI + STORY CARDS
+# ═══════════════════════════════════════════════════════════════
+
+df_monthly = load_monthly_sales()
+df_country = load_country_sales()
+df_category = load_category_sales()
+df_returns = load_sales_vs_returns()
+
+if selected_countries and not df_country.empty:
+    df_country_filtered = df_country[df_country["country"].isin(selected_countries)]
+else:
+    df_country_filtered = df_country
 
 if not df_monthly.empty:
-    total_revenue = df_monthly["revenue"].sum()
-    total_orders = int(df_monthly["total_orders"].sum())
-    total_units = int(df_monthly["units_sold"].sum())
-    avg_order = total_revenue / total_orders if total_orders > 0 else 0
-    months_count = len(df_monthly)
+    total_revenue = df_country_filtered["revenue"].sum() if not df_country_filtered.empty else 0
+    total_invoices = int(df_country_filtered["total_invoices"].sum()) if not df_country_filtered.empty else 0
+    total_units = int(df_country_filtered["units_sold"].sum()) if not df_country_filtered.empty else 0
+    avg_invoice = total_revenue / total_invoices if total_invoices > 0 else 0
+
+    return_rate = 0
+    if not df_returns.empty:
+        sales_cnt = df_returns[df_returns["transaction_type"] == "Sale"]["count_transactions"].sum()
+        ret_cnt = df_returns[df_returns["transaction_type"] == "Return"]["count_transactions"].sum()
+        if sales_cnt > 0:
+            return_rate = (ret_cnt / sales_cnt) * 100
 
     k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric("Total Revenue", fmt_inr(total_revenue))
-    k2.metric("Total Orders", f"{total_orders:,}")
+    k1.metric("Total Revenue", fmt_money(total_revenue))
+    k2.metric("Invoices", f"{total_invoices:,}")
     k3.metric("Units Sold", f"{total_units:,}")
-    k4.metric("Avg Order Value", fmt_inr(avg_order))
-    k5.metric("Months Tracked", f"{months_count}")
-else:
-    st.warning("No data for selected filters.")
+    k4.metric("Avg Invoice", fmt_money(avg_invoice))
+    k5.metric("Return Rate", f"{return_rate:.1f}%")
 
-st.divider()
+if not df_monthly.empty and not df_country.empty and not df_category.empty:
+    best_month = df_monthly.loc[df_monthly["revenue"].idxmax()]
+    top_country = df_country.iloc[0]
+    top_cat = df_category.iloc[0]
+    cat_share = (top_cat['revenue'] / df_category['revenue'].sum()) * 100
+
+    st.markdown("###  ")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        story_card("Top Market",
+                   f"<strong>{top_country['country']}</strong> leads with "
+                   f"<strong>{fmt_money(top_country['revenue'])}</strong> in revenue from "
+                   f"{int(top_country['total_invoices']):,} invoices.")
+    with c2:
+        story_card("Peak Month",
+                   f"<strong>{best_month['month']}</strong> was the highest-grossing month with "
+                   f"<strong>{fmt_money(best_month['revenue'])}</strong> in sales.")
+    with c3:
+        story_card("Bestselling Division",
+                   f"<strong>{top_cat['category']}</strong> wear leads with "
+                   f"<strong>{fmt_money(top_cat['revenue'])}</strong> "
+                   f"({cat_share:.0f}% share).")
+
+st.markdown("---")
 
 
 # ═══════════════════════════════════════════════════════════════
 # TABS
 # ═══════════════════════════════════════════════════════════════
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "📈 Sales Trends", "🎨 Attributes", "🗺️ Regions",
-    "📦 Inventory", "🔗 Trends", "👥 Segments",
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    "Trends", "Geography", "Categories", "Payments", "Customers", "Store Map", "Patterns",
 ])
 
 
-# ── Tab 1: Sales ──
+# ── Tab 1: Trends ──
 with tab1:
     if not df_monthly.empty:
-        fig_line = go.Figure()
-        fig_line.add_trace(go.Scatter(
+        st.markdown("### Monthly Revenue Trend")
+        chart_subtitle("Revenue performance month by month")
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
             x=df_monthly["month"], y=df_monthly["revenue"],
-            mode="lines+markers", name="Revenue",
-            line=dict(color="#818cf8", width=2.5), marker=dict(size=6),
-            fill="tozeroy", fillcolor="rgba(129,140,248,0.12)",
+            mode="lines+markers",
+            line=dict(color=VOGUE['ink'], width=3),
+            marker=dict(size=8, color=VOGUE['accent'], line=dict(color=VOGUE['ink'], width=2)),
+            fill="tozeroy", fillcolor="rgba(255, 31, 109, 0.06)",
         ))
-        fig_line.update_layout(title="Monthly Revenue Trend", template=CHART_TEMPLATE, **CHART_BG,
-                               height=380, hovermode="x unified", font=CHART_FONT,
-                               margin=dict(l=20, r=20, t=50, b=20))
-        st.plotly_chart(fig_line, use_container_width=True)
+        fig.update_layout(xaxis_title="", yaxis_title="Revenue ($)", hovermode="x unified")
+        st.plotly_chart(style_fig(fig, 380), use_container_width=True)
 
-        # Insight
-        best_month = df_monthly.loc[df_monthly["revenue"].idxmax()]
-        worst_month = df_monthly.loc[df_monthly["revenue"].idxmin()]
-        insight(f"Best month: **{best_month['month']}** ({fmt_inr(best_month['revenue'])}) • "
-                f"Slowest month: **{worst_month['month']}** ({fmt_inr(worst_month['revenue'])})")
+        best = df_monthly.loc[df_monthly["revenue"].idxmax()]
+        worst = df_monthly.loc[df_monthly["revenue"].idxmin()]
+        insight(f"Best month: <strong>{best['month']}</strong> ({fmt_money(best['revenue'])}) &nbsp;|&nbsp; "
+                f"Slowest: <strong>{worst['month']}</strong> ({fmt_money(worst['revenue'])})")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            df_top = load_top_products(top_n, start_date, end_date, selected_cats)
+        df_cum = load_cumulative()
+        if not df_cum.empty:
+            st.markdown("### Cumulative Revenue Growth")
+            chart_subtitle("Total accumulated revenue over the data period")
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=df_cum["month"], y=df_cum["cumulative_revenue"],
+                mode="lines",
+                line=dict(color=VOGUE['accent'], width=3),
+                fill="tozeroy", fillcolor="rgba(255, 31, 109, 0.08)",
+            ))
+            fig.update_layout(xaxis_title="", yaxis_title="Cumulative Revenue ($)")
+            st.plotly_chart(style_fig(fig, 320), use_container_width=True)
+
+        df_top = load_top_products(top_n)
+        if not df_top.empty:
+            if selected_categories:
+                df_top = df_top[df_top["category"].isin(selected_categories)]
             if not df_top.empty:
-                fig_top = px.bar(
-                    df_top.sort_values("total_revenue"), x="total_revenue", y="product_name",
-                    orientation="h", color="category_name",
-                    title=f"Top {top_n} Products by Revenue",
-                    labels={"total_revenue": "Revenue (₹)", "product_name": ""},
-                    color_discrete_sequence=COLORS,
+                st.markdown(f"### Top {top_n} Products by Revenue")
+                chart_subtitle("Highest-grossing products. Adjust 'Top N' in sidebar.")
+                fig = px.bar(
+                    df_top.sort_values("total_revenue"),
+                    x="total_revenue", y="product_name", orientation="h",
+                    color="category",
+                    color_discrete_sequence=[VOGUE['ink'], VOGUE['accent'], "#FFB8CE"],
+                    labels={"total_revenue": "Revenue ($)", "product_name": ""},
                 )
-                fig_top.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=420, font=CHART_FONT,
-                                      margin=dict(l=20, r=20, t=50, b=20))
-                st.plotly_chart(fig_top, use_container_width=True)
-
-        with col2:
-            df_channel = load_channel_data(start_date, end_date)
-            if not df_channel.empty:
-                fig_ch = px.pie(
-                    df_channel, values="revenue", names="channel",
-                    title="Revenue by Channel", hole=0.45,
-                    color_discrete_sequence=["#818cf8", "#34d399", "#fbbf24"],
-                )
-                fig_ch.update_layout(height=420, font=CHART_FONT, **CHART_BG, margin=dict(l=20, r=20, t=50, b=20))
-                st.plotly_chart(fig_ch, use_container_width=True)
-
-                # Channel insight
-                top_ch = df_channel.iloc[0]
-                insight(f"**{top_ch['channel']}** leads with {fmt_inr(top_ch['revenue'])} revenue "
-                        f"({top_ch['orders']} orders, avg {top_ch['avg_discount']}% discount)")
-
-        # Seasonal heatmap
-        st.markdown("#### 🌡️ Seasonal Sales Heatmap")
-        st.caption("Units sold per month × category — spot seasonal patterns")
-        df_heat = load_seasonal_heatmap(start_date, end_date)
-        if not df_heat.empty:
-            month_names = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'May',6:'Jun',
-                          7:'Jul',8:'Aug',9:'Sep',10:'Oct',11:'Nov',12:'Dec'}
-            df_heat["month_name"] = df_heat["month_num"].map(month_names)
-            pivot = df_heat.pivot_table(index="category_name", columns="month_name",
-                                        values="units_sold", fill_value=0)
-            month_order = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-            pivot = pivot[[m for m in month_order if m in pivot.columns]]
-
-            fig_heat = px.imshow(
-                pivot, text_auto=True, aspect="auto",
-                color_continuous_scale="YlOrRd",
-                labels=dict(x="Month", y="Category", color="Units Sold"),
-            )
-            fig_heat.update_layout(height=350, font=CHART_FONT, **CHART_BG, margin=dict(l=20, r=20, t=20, b=20))
-            st.plotly_chart(fig_heat, use_container_width=True)
-
-            # Heatmap insight
-            max_cell = df_heat.loc[df_heat["units_sold"].idxmax()]
-            insight(f"Peak sales: **{max_cell['category_name']}** in **{max_cell['month_name']}** "
-                    f"with {int(max_cell['units_sold'])} units sold")
+                fig.update_layout(legend=dict(orientation="h", y=1.05))
+                st.plotly_chart(style_fig(fig, 460), use_container_width=True)
 
 
-# ── Tab 2: Attributes ──
+# ── Tab 2: Geography ──
 with tab2:
-    df_attr = load_attribute_trends(attr_type, start_date, end_date)
-    if not df_attr.empty:
-        col1, col2 = st.columns(2)
-        with col1:
-            fig_attr = px.bar(
-                df_attr.head(12), x="attribute_value", y="units_sold",
-                color="revenue", color_continuous_scale="Purples",
-                title=f"Top {attr_type}s by Units Sold",
-                labels={"attribute_value": attr_type, "units_sold": "Units Sold"},
-            )
-            fig_attr.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=420, font=CHART_FONT,
-                                   margin=dict(l=20, r=20, t=50, b=20))
-            st.plotly_chart(fig_attr, use_container_width=True)
+    if not df_country_filtered.empty:
+        st.markdown("### Global Revenue by Country")
+        chart_subtitle("Choropleth map — darker = more revenue")
+        country_iso = {
+            "United States": "USA", "China": "CHN", "Germany": "DEU",
+            "United Kingdom": "GBR", "France": "FRA", "Spain": "ESP", "Portugal": "PRT",
+        }
+        df_map = df_country_filtered.copy()
+        df_map["iso"] = df_map["country"].map(country_iso)
 
-        with col2:
-            fig_pie = px.pie(
-                df_attr.head(8), values="revenue", names="attribute_value",
-                title=f"Revenue Share by {attr_type}", hole=0.45,
-                color_discrete_sequence=COLORS,
-            )
-            fig_pie.update_layout(height=420, font=CHART_FONT, **CHART_BG, margin=dict(l=20, r=20, t=50, b=20))
-            st.plotly_chart(fig_pie, use_container_width=True)
-
-        # Insight
-        top_attr = df_attr.iloc[0]
-        insight(f"**{top_attr['attribute_value']}** is the top-selling {attr_type.lower()} "
-                f"with {int(top_attr['units_sold'])} units sold ({fmt_inr(top_attr['revenue'])} revenue)")
-
-        st.dataframe(
-            df_attr.rename(columns={"attribute_type": "Type", "attribute_value": attr_type,
-                                     "units_sold": "Units Sold", "revenue": "Revenue (₹)"}),
-            use_container_width=True, hide_index=True,
+        fig = px.choropleth(
+            df_map, locations="iso", color="revenue",
+            hover_name="country",
+            hover_data={"iso": False, "revenue": ":,.0f"},
+            color_continuous_scale=["#FFFFFF", VOGUE['accent'], VOGUE['ink']],
         )
-    else:
-        st.info("No attribute data for selected filters.")
-
-
-# ── Tab 3: Regions ──
-with tab3:
-    df_region = load_region_demand(start_date, end_date)
-    if not df_region.empty:
-        fig_region = px.bar(
-            df_region, x="region", y="revenue",
-            color="revenue", color_continuous_scale="Teal",
-            title="Revenue by Region",
-            labels={"region": "City", "revenue": "Revenue (₹)"},
+        fig.update_layout(
+            height=420, font=CHART_FONT, **CHART_BG,
+            geo=dict(
+                bgcolor="rgba(0,0,0,0)", showframe=False, showcoastlines=True,
+                coastlinecolor=VOGUE['border'], landcolor="#FFFFFF",
+                showcountries=True, countrycolor=VOGUE['border'],
+                projection_type="natural earth",
+            ),
+            margin=dict(l=0, r=0, t=10, b=0),
         )
-        fig_region.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=400, font=CHART_FONT,
-                                 margin=dict(l=20, r=20, t=50, b=20))
-        st.plotly_chart(fig_region, use_container_width=True)
-
-        # Insight
-        top_city = df_region.iloc[0]
-        bottom_city = df_region.iloc[-1]
-        insight(f"**{top_city['region']}** leads with {fmt_inr(top_city['revenue'])} • "
-                f"**{bottom_city['region']}** has lowest demand at {fmt_inr(bottom_city['revenue'])}")
+        st.plotly_chart(fig, use_container_width=True)
 
         col1, col2 = st.columns(2)
         with col1:
-            fig_scatter = px.scatter(
-                df_region, x="total_orders", y="revenue",
-                size="units_sold", color="region",
-                title="Orders vs Revenue",
-                labels={"total_orders": "Orders", "revenue": "Revenue (₹)"},
-                color_discrete_sequence=COLORS,
+            st.markdown("### Revenue Ranking")
+            chart_subtitle("Countries ranked by total revenue")
+            fig = px.bar(
+                df_country_filtered.sort_values("revenue"),
+                x="revenue", y="country", orientation="h",
+                color="revenue", color_continuous_scale=["#FFE5EE", VOGUE['accent']],
+                labels={"country": "", "revenue": "Revenue ($)"},
             )
-            fig_scatter.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=400, showlegend=False,
-                                      font=CHART_FONT, margin=dict(l=20, r=20, t=50, b=20))
-            st.plotly_chart(fig_scatter, use_container_width=True)
-        with col2:
-            st.dataframe(
-                df_region.rename(columns={"region": "City", "total_orders": "Orders",
-                                          "units_sold": "Units", "revenue": "Revenue (₹)"}),
-                use_container_width=True, hide_index=True, height=380,
-            )
+            fig.update_layout(coloraxis_showscale=False)
+            st.plotly_chart(style_fig(fig, 380), use_container_width=True)
 
-
-# ── Tab 4: Inventory ──
-with tab4:
-    col_left, col_right = st.columns(2)
-
-    with col_left:
-        st.markdown("#### ⚠️ Low Stock Alert")
-        df_risk = load_inventory_risk()
-        if not df_risk.empty:
-            warning_insight(f"**{len(df_risk)} products** are below their reorder level and need restocking")
-            fig_risk = px.bar(
-                df_risk.head(12), x="product_name", y="deficit",
-                color="deficit", color_continuous_scale="Reds",
-                title="Stock Deficit by Product",
-                labels={"product_name": "", "deficit": "Units Short"},
-            )
-            fig_risk.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=400, xaxis_tickangle=-45,
-                                   font=CHART_FONT, margin=dict(l=20, r=20, t=50, b=80))
-            st.plotly_chart(fig_risk, use_container_width=True)
-
-            # Warehouse breakdown
-            wh_risk = df_risk.groupby("warehouse_location").size().reset_index(name="at_risk_items")
-            st.markdown("**At-risk items by warehouse:**")
-            for _, row in wh_risk.iterrows():
-                st.markdown(f"📍 {row['warehouse_location']}: **{row['at_risk_items']}** items")
-        else:
-            st.success("All products above reorder level!")
-
-    with col_right:
-        st.markdown("#### 🧊 Dead Stock")
-        st.caption("Products with inventory but zero sales in 90 days")
-        df_dead = load_dead_stock()
-        if not df_dead.empty:
-            warning_insight(f"**{len(df_dead)} products** have stock but no sales in 90 days — consider markdowns")
-
-            # Dead stock by brand
-            brand_dead = df_dead.groupby("brand").agg(
-                items=("product_id", "count"),
-                total_stock=("stock_quantity", "sum")
-            ).sort_values("total_stock", ascending=False).reset_index()
-
-            fig_dead = px.bar(
-                brand_dead.head(8), x="brand", y="total_stock",
-                color="items", color_continuous_scale="OrRd",
-                title="Dead Stock by Brand",
-                labels={"brand": "", "total_stock": "Stuck Units", "items": "Products"},
-            )
-            fig_dead.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=350, font=CHART_FONT,
-                                   margin=dict(l=20, r=20, t=50, b=20))
-            st.plotly_chart(fig_dead, use_container_width=True)
-
-            with st.expander(f"View all {len(df_dead)} dead stock items"):
-                st.dataframe(
-                    df_dead.rename(columns={"product_name": "Product", "brand": "Brand",
-                                            "stock_quantity": "Stock", "warehouse_location": "Warehouse"}),
-                    use_container_width=True, hide_index=True,
+        df_stores_perf = load_top_stores(top_n)
+        if not df_stores_perf.empty:
+            with col2:
+                st.markdown(f"### Top {top_n} Stores")
+                chart_subtitle("Best-performing physical stores worldwide")
+                fig = px.bar(
+                    df_stores_perf.sort_values("revenue"),
+                    x="revenue", y="store_name", orientation="h",
+                    color="country", color_discrete_sequence=CHART_COLORS,
+                    labels={"revenue": "Revenue ($)", "store_name": ""},
                 )
-        else:
-            st.success("No dead stock detected!")
+                fig.update_layout(legend=dict(font=dict(size=9)))
+                st.plotly_chart(style_fig(fig, 380), use_container_width=True)
 
 
-# ── Tab 5: Trends ──
-with tab5:
-    df_trend = load_trend_correlation()
-    if not df_trend.empty:
-        fig_corr = px.scatter(
-            df_trend, x="avg_trend_score", y="linked_revenue",
-            size="linked_sales", color="keyword",
-            title="Social Media Trend Score vs. Linked Revenue",
-            labels={"avg_trend_score": "Avg Trend Score",
-                    "linked_revenue": "Linked Revenue (₹)", "linked_sales": "Sales Count"},
-            hover_name="keyword", color_discrete_sequence=COLORS,
-        )
-        fig_corr.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=500, showlegend=False,
-                               font=CHART_FONT, margin=dict(l=20, r=20, t=50, b=20))
-        st.plotly_chart(fig_corr, use_container_width=True)
-
-        # Insight
-        top_trend = df_trend.iloc[0]
-        high_rev = df_trend.loc[df_trend["linked_revenue"].idxmax()]
-        insight(f"Highest trend score: **{top_trend['keyword']}** ({top_trend['avg_trend_score']}) • "
-                f"Most revenue-linked: **{high_rev['keyword']}** ({fmt_inr(high_rev['linked_revenue'])})")
-
-        st.dataframe(
-            df_trend.rename(columns={"keyword": "Trend Keyword", "avg_trend_score": "Score",
-                                      "linked_sales": "Linked Sales", "linked_revenue": "Revenue (₹)"}),
-            use_container_width=True, hide_index=True,
-        )
-
-
-# ── Tab 6: Segments ──
-with tab6:
-    df_seg = load_segment_data(start_date, end_date)
-    if not df_seg.empty:
+# ── Tab 3: Categories ──
+with tab3:
+    if not df_category.empty:
+        st.markdown("### Category Performance")
+        chart_subtitle("Revenue split between Feminine, Masculine, and Children")
         col1, col2 = st.columns(2)
         with col1:
-            fig_seg = px.bar(
-                df_seg, x="segment", y="revenue", color="segment",
-                title="Revenue by Segment",
-                labels={"segment": "", "revenue": "Revenue (₹)"},
-                color_discrete_sequence=["#34d399", "#22d3ee", "#a78bfa", "#f472b6"],
+            fig = px.bar(
+                df_category, x="category", y="revenue", color="category",
+                labels={"category": "", "revenue": "Revenue ($)"},
+                color_discrete_sequence=[VOGUE['accent'], VOGUE['ink'], "#FFB8CE"],
             )
-            fig_seg.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=400, showlegend=False,
-                                  font=CHART_FONT, margin=dict(l=20, r=20, t=50, b=20))
-            st.plotly_chart(fig_seg, use_container_width=True)
-
+            fig.update_layout(showlegend=False)
+            st.plotly_chart(style_fig(fig, 380), use_container_width=True)
         with col2:
-            fig_aov = px.bar(
-                df_seg, x="segment", y="avg_order_value", color="segment",
-                title="Avg Order Value by Segment",
-                labels={"segment": "", "avg_order_value": "AOV (₹)"},
-                color_discrete_sequence=["#34d399", "#22d3ee", "#a78bfa", "#f472b6"],
+            fig = px.pie(
+                df_category, values="revenue", names="category", hole=0.5,
+                color_discrete_sequence=[VOGUE['accent'], VOGUE['ink'], "#FFB8CE"],
             )
-            fig_aov.update_layout(template=CHART_TEMPLATE, **CHART_BG, height=400, showlegend=False,
-                                  font=CHART_FONT, margin=dict(l=20, r=20, t=50, b=20))
-            st.plotly_chart(fig_aov, use_container_width=True)
+            fig.update_layout(font=CHART_FONT, **CHART_BG, height=380, margin=dict(l=15, r=15, t=15, b=15))
+            st.plotly_chart(fig, use_container_width=True)
 
-        # Insight
-        top_seg = df_seg.iloc[0]
-        luxury = df_seg[df_seg["segment"] == "Luxury"]
-        if not luxury.empty:
-            lux = luxury.iloc[0]
-            insight(f"**{top_seg['segment']}** segment drives the most revenue ({fmt_inr(top_seg['revenue'])}) • "
-                    f"**Luxury** customers have highest AOV at {fmt_inr(lux['avg_order_value'])}")
+        df_sub = load_sub_category()
+        if not df_sub.empty:
+            if selected_categories:
+                df_sub = df_sub[df_sub["category"].isin(selected_categories)]
+            if not df_sub.empty:
+                st.markdown("### Sub-Category Treemap")
+                chart_subtitle("Each rectangle's size shows its revenue contribution")
+                fig = px.treemap(
+                    df_sub, path=["category", "sub_category"], values="revenue",
+                    color="revenue",
+                    color_continuous_scale=["#FFFFFF", VOGUE['accent'], VOGUE['ink']],
+                )
+                fig.update_layout(height=460, font=CHART_FONT, **CHART_BG, margin=dict(l=15, r=15, t=15, b=15))
+                st.plotly_chart(fig, use_container_width=True)
 
-        # Brand treemap
-        df_brand = load_brand_share(start_date, end_date)
-        if not df_brand.empty:
-            fig_brand = px.treemap(
-                df_brand, path=["brand"], values="revenue",
-                title="Brand Market Share (by Revenue)",
-                color="revenue", color_continuous_scale="Purples",
+
+# ── Tab 4: Payments ──
+with tab4:
+    df_pay = load_payment_breakdown()
+    df_disc = load_discount_effectiveness()
+
+    col1, col2 = st.columns(2)
+    if not df_pay.empty:
+        with col1:
+            st.markdown("### Payment Methods")
+            chart_subtitle("How customers choose to pay")
+            fig = px.pie(
+                df_pay, values="revenue", names="payment_method", hole=0.5,
+                color_discrete_sequence=[VOGUE['ink'], VOGUE['accent']],
             )
-            fig_brand.update_layout(height=400, font=CHART_FONT, **CHART_BG, margin=dict(l=20, r=20, t=50, b=20))
-            st.plotly_chart(fig_brand, use_container_width=True)
+            fig.update_layout(height=380, font=CHART_FONT, **CHART_BG, margin=dict(l=15, r=15, t=15, b=15))
+            st.plotly_chart(fig, use_container_width=True)
+            top_pay = df_pay.iloc[0]
+            insight(f"<strong>{top_pay['payment_method']}</strong> dominates with "
+                    f"<strong>{top_pay['pct_of_total']}%</strong> of total revenue")
 
+    if not df_disc.empty:
+        with col2:
+            st.markdown("### Discount Effectiveness")
+            chart_subtitle("Revenue distribution across discount levels")
+            fig = px.bar(
+                df_disc, x="discount_bucket", y="revenue", color="discount_bucket",
+                labels={"discount_bucket": "", "revenue": "Revenue ($)"},
+                color_discrete_sequence=CHART_COLORS,
+            )
+            fig.update_layout(showlegend=False)
+            st.plotly_chart(style_fig(fig, 380), use_container_width=True)
+
+    if not df_returns.empty:
+        st.markdown("### Sales vs Returns")
+        chart_subtitle("Compare total sales value with returns")
+        fig = px.bar(
+            df_returns, x="transaction_type", y="total_value", color="transaction_type",
+            labels={"transaction_type": "", "total_value": "Value ($)"},
+            color_discrete_sequence=[VOGUE['ink'], VOGUE['accent']],
+        )
+        fig.update_layout(showlegend=False)
+        st.plotly_chart(style_fig(fig, 320), use_container_width=True)
+
+
+# ── Tab 5: Customers ──
+with tab5:
+    df_top_cust = load_top_customers(top_n)
+    if not df_top_cust.empty:
+        st.markdown(f"### Top {top_n} Customers by Lifetime Value")
+        chart_subtitle("Highest-spending customers with their purchase history")
         st.dataframe(
-            df_seg.rename(columns={"segment": "Segment", "customers": "Customers",
-                                    "orders": "Orders", "revenue": "Revenue (₹)",
-                                    "avg_order_value": "Avg Order Value (₹)"}),
+            df_top_cust.rename(columns={
+                "customer_id": "ID", "name": "Name", "country": "Country",
+                "gender": "Gender", "age": "Age", "total_orders": "Orders",
+                "lifetime_value": "Lifetime Value ($)",
+            }),
             use_container_width=True, hide_index=True,
         )
+
+    df_demo = load_demographics()
+    if not df_demo.empty:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("### Revenue by Gender")
+            chart_subtitle("Revenue split across customer gender")
+            df_g = df_demo.groupby("gender")["revenue"].sum().reset_index()
+            fig = px.bar(
+                df_g, x="gender", y="revenue", color="gender",
+                labels={"gender": "", "revenue": "Revenue ($)"},
+                color_discrete_sequence=[VOGUE['accent'], VOGUE['ink'], "#FFB8CE"],
+            )
+            fig.update_layout(showlegend=False)
+            st.plotly_chart(style_fig(fig, 350), use_container_width=True)
+        with col2:
+            st.markdown("### Revenue by Age Group")
+            chart_subtitle("Which age groups drive the most sales")
+            df_a = df_demo.groupby("age_group")["revenue"].sum().reset_index()
+            fig = px.bar(
+                df_a, x="age_group", y="revenue",
+                color="revenue", color_continuous_scale=["#FFE5EE", VOGUE['accent']],
+                labels={"age_group": "", "revenue": "Revenue ($)"},
+            )
+            fig.update_layout(coloraxis_showscale=False)
+            st.plotly_chart(style_fig(fig, 350), use_container_width=True)
+
+
+# ── Tab 6: Store Map ──
+with tab6:
+    df_stores = load_stores()
+    if not df_stores.empty:
+        st.markdown("### Global Store Network")
+        chart_subtitle(f"All {len(df_stores)} stores worldwide. Bubble size = number of employees.")
+        fig = px.scatter_geo(
+            df_stores, lat="latitude", lon="longitude",
+            hover_name="store_name",
+            hover_data={"city": True, "country": True, "num_employees": True,
+                        "latitude": False, "longitude": False},
+            color="country", size="num_employees",
+            projection="natural earth",
+            color_discrete_sequence=CHART_COLORS,
+        )
+        fig.update_layout(
+            height=550, font=CHART_FONT, **CHART_BG,
+            geo=dict(
+                bgcolor="rgba(0,0,0,0)", landcolor="#FFFFFF",
+                showcountries=True, countrycolor=VOGUE['border'],
+                coastlinecolor=VOGUE['border'],
+            ),
+            margin=dict(l=0, r=0, t=20, b=0),
+            legend=dict(font=dict(size=10)),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+
+# ── Tab 7: Patterns ──
+with tab7:
+    df_yoy = load_yoy()
+    if not df_yoy.empty:
+        st.markdown("### Year-over-Year Comparison")
+        chart_subtitle("Compare monthly revenue across years to spot trends and seasonality")
+        month_names = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'May',6:'Jun',
+                       7:'Jul',8:'Aug',9:'Sep',10:'Oct',11:'Nov',12:'Dec'}
+        df_yoy["month_name"] = df_yoy["month"].map(month_names)
+
+        fig = go.Figure()
+        year_colors = {2023: VOGUE['ink'], 2024: VOGUE['accent'], 2025: "#FFB8CE"}
+        for year in sorted(df_yoy["year"].unique()):
+            year_data = df_yoy[df_yoy["year"] == year]
+            fig.add_trace(go.Scatter(
+                x=year_data["month_name"], y=year_data["revenue"],
+                mode="lines+markers", name=str(year),
+                line=dict(width=3, color=year_colors.get(year, VOGUE['accent_dk'])),
+                marker=dict(size=8),
+            ))
+        fig.update_layout(xaxis_title="", yaxis_title="Revenue ($)", hovermode="x unified")
+        st.plotly_chart(style_fig(fig, 400), use_container_width=True)
+
+    df_dow = load_dow_heatmap()
+    if not df_dow.empty:
+        st.markdown("### Shopping Patterns Heatmap")
+        chart_subtitle("Brighter cells = more transactions at that day/hour combination")
+        day_order = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+        pivot = df_dow.pivot_table(index="day_name", columns="hour", values="transaction_count", fill_value=0)
+        pivot = pivot.reindex([d for d in day_order if d in pivot.index])
+
+        fig = px.imshow(
+            pivot, color_continuous_scale=["#FFFFFF", VOGUE['accent'], VOGUE['ink']], aspect="auto",
+            labels=dict(x="Hour of Day", y="", color="Transactions"),
+        )
+        fig.update_layout(height=380, font=CHART_FONT, **CHART_BG, margin=dict(l=15, r=15, t=15, b=15))
+        st.plotly_chart(fig, use_container_width=True)
+
+        max_idx = df_dow["transaction_count"].idxmax()
+        peak = df_dow.loc[max_idx]
+        insight(f"Peak shopping time: <strong>{peak['day_name']} at {int(peak['hour'])}:00</strong> "
+                f"with {int(peak['transaction_count'])} transactions")
 
 
 # ── Footer ──
-st.divider()
+st.markdown("---")
 st.markdown(
-    "<div style='text-align:center; color:#94a3b8; font-size:0.75rem;'>"
-    "Fashion Trend Forecasting & Sales Intelligence System &nbsp;•&nbsp; "
-    "DBMS Course Project 2026</div>", unsafe_allow_html=True,
+    f"<div style='text-align:center; color:{VOGUE['ink_mute']}; font-size:0.7rem; "
+    f"text-transform:uppercase; letter-spacing:2px; padding-top:0.5rem;'>"
+    "◆ Fashion Trend Forecasting & Sales Intelligence &middot; DBMS Project 2026"
+    "</div>",
+    unsafe_allow_html=True,
 )
