@@ -281,12 +281,31 @@ hr {{ border-color: {VOGUE['ink']} !important; margin: 1.5rem 0 !important; opac
 # HELPERS
 # ═══════════════════════════════════════════════════════════════
 
-def fmt_money(amount):
-    if amount >= 1_000_000:
-        return f"${amount/1_000_000:.2f}M"
-    elif amount >= 1_000:
-        return f"${amount/1_000:.1f}K"
-    return f"${amount:,.0f}"
+USD_TO_INR = 83  # Exchange rate for converting USD to Indian Rupees
+
+# Columns that contain money values (will be converted USD -> INR on load)
+MONEY_COLS = {"revenue", "total_revenue", "avg_line_value", "lifetime_value",
+              "total_value", "cumulative_revenue", "monthly_revenue"}
+
+def to_inr(df):
+    """Convert all money columns in a dataframe from USD to INR. Returns a copy."""
+    if df is None or df.empty:
+        return df
+    df = df.copy()
+    for col in df.columns:
+        if col in MONEY_COLS:
+            df[col] = df[col] * USD_TO_INR
+    return df
+
+def fmt_money(inr):
+    """Format INR value in Indian style (Cr/L/K). Input is already INR."""
+    if inr >= 1_00_00_000:  # 1 Crore
+        return f"₹{inr/1_00_00_000:.2f}Cr"
+    elif inr >= 1_00_000:   # 1 Lakh
+        return f"₹{inr/1_00_000:.1f}L"
+    elif inr >= 1_000:
+        return f"₹{inr/1_000:.1f}K"
+    return f"₹{inr:,.0f}"
 
 def insight(text):
     st.markdown(f'<div class="insight-box">◆ {text}</div>', unsafe_allow_html=True)
@@ -581,10 +600,10 @@ st.markdown("---")
 # DATA + KPI + STORY CARDS
 # ═══════════════════════════════════════════════════════════════
 
-df_monthly = load_monthly_sales()
-df_country = load_country_sales()
-df_category = load_category_sales()
-df_returns = load_sales_vs_returns()
+df_monthly = to_inr(load_monthly_sales())
+df_country = to_inr(load_country_sales())
+df_category = to_inr(load_category_sales())
+df_returns = to_inr(load_sales_vs_returns())
 
 if selected_countries and not df_country.empty:
     df_country_filtered = df_country[df_country["country"].isin(selected_countries)]
@@ -659,7 +678,7 @@ with tab1:
             marker=dict(size=8, color=VOGUE['accent'], line=dict(color=VOGUE['ink'], width=2)),
             fill="tozeroy", fillcolor="rgba(255, 31, 109, 0.06)",
         ))
-        fig.update_layout(xaxis_title="", yaxis_title="Revenue ($)", hovermode="x unified")
+        fig.update_layout(xaxis_title="", yaxis_title="Revenue (INR)", hovermode="x unified")
         st.plotly_chart(style_fig(fig, 380), use_container_width=True)
 
         best = df_monthly.loc[df_monthly["revenue"].idxmax()]
@@ -667,7 +686,7 @@ with tab1:
         insight(f"Best month: <strong>{best['month']}</strong> ({fmt_money(best['revenue'])}) &nbsp;|&nbsp; "
                 f"Slowest: <strong>{worst['month']}</strong> ({fmt_money(worst['revenue'])})")
 
-        df_cum = load_cumulative()
+        df_cum = to_inr(load_cumulative())
         if not df_cum.empty:
             st.markdown("### Cumulative Revenue Growth")
             chart_subtitle("Total accumulated revenue over the data period")
@@ -678,10 +697,10 @@ with tab1:
                 line=dict(color=VOGUE['accent'], width=3),
                 fill="tozeroy", fillcolor="rgba(255, 31, 109, 0.08)",
             ))
-            fig.update_layout(xaxis_title="", yaxis_title="Cumulative Revenue ($)")
+            fig.update_layout(xaxis_title="", yaxis_title="Cumulative Revenue (INR)")
             st.plotly_chart(style_fig(fig, 320), use_container_width=True)
 
-        df_top = load_top_products(top_n)
+        df_top = to_inr(load_top_products(top_n))
         if not df_top.empty:
             if selected_categories:
                 df_top = df_top[df_top["category"].isin(selected_categories)]
@@ -693,7 +712,7 @@ with tab1:
                     x="total_revenue", y="product_name", orientation="h",
                     color="category",
                     color_discrete_sequence=[VOGUE['ink'], VOGUE['accent'], "#FFB8CE"],
-                    labels={"total_revenue": "Revenue ($)", "product_name": ""},
+                    labels={"total_revenue": "Revenue (INR)", "product_name": ""},
                 )
                 fig.update_layout(legend=dict(orientation="h", y=1.05))
                 st.plotly_chart(style_fig(fig, 460), use_container_width=True)
@@ -737,12 +756,12 @@ with tab2:
                 df_country_filtered.sort_values("revenue"),
                 x="revenue", y="country", orientation="h",
                 color="revenue", color_continuous_scale=["#FFE5EE", VOGUE['accent']],
-                labels={"country": "", "revenue": "Revenue ($)"},
+                labels={"country": "", "revenue": "Revenue (INR)"},
             )
             fig.update_layout(coloraxis_showscale=False)
             st.plotly_chart(style_fig(fig, 380), use_container_width=True)
 
-        df_stores_perf = load_top_stores(top_n)
+        df_stores_perf = to_inr(load_top_stores(top_n))
         if not df_stores_perf.empty:
             with col2:
                 st.markdown(f"### Top {top_n} Stores")
@@ -751,7 +770,7 @@ with tab2:
                     df_stores_perf.sort_values("revenue"),
                     x="revenue", y="store_name", orientation="h",
                     color="country", color_discrete_sequence=CHART_COLORS,
-                    labels={"revenue": "Revenue ($)", "store_name": ""},
+                    labels={"revenue": "Revenue (INR)", "store_name": ""},
                 )
                 fig.update_layout(legend=dict(font=dict(size=9)))
                 st.plotly_chart(style_fig(fig, 380), use_container_width=True)
@@ -766,7 +785,7 @@ with tab3:
         with col1:
             fig = px.bar(
                 df_category, x="category", y="revenue", color="category",
-                labels={"category": "", "revenue": "Revenue ($)"},
+                labels={"category": "", "revenue": "Revenue (INR)"},
                 color_discrete_sequence=[VOGUE['accent'], VOGUE['ink'], "#FFB8CE"],
             )
             fig.update_layout(showlegend=False)
@@ -779,7 +798,7 @@ with tab3:
             fig.update_layout(font=CHART_FONT, **CHART_BG, height=380, margin=dict(l=15, r=15, t=15, b=15))
             st.plotly_chart(fig, use_container_width=True)
 
-        df_sub = load_sub_category()
+        df_sub = to_inr(load_sub_category())
         if not df_sub.empty:
             if selected_categories:
                 df_sub = df_sub[df_sub["category"].isin(selected_categories)]
@@ -797,8 +816,8 @@ with tab3:
 
 # ── Tab 4: Payments ──
 with tab4:
-    df_pay = load_payment_breakdown()
-    df_disc = load_discount_effectiveness()
+    df_pay = to_inr(load_payment_breakdown())
+    df_disc = to_inr(load_discount_effectiveness())
 
     col1, col2 = st.columns(2)
     if not df_pay.empty:
@@ -821,7 +840,7 @@ with tab4:
             chart_subtitle("Revenue distribution across discount levels")
             fig = px.bar(
                 df_disc, x="discount_bucket", y="revenue", color="discount_bucket",
-                labels={"discount_bucket": "", "revenue": "Revenue ($)"},
+                labels={"discount_bucket": "", "revenue": "Revenue (INR)"},
                 color_discrete_sequence=CHART_COLORS,
             )
             fig.update_layout(showlegend=False)
@@ -832,7 +851,7 @@ with tab4:
         chart_subtitle("Compare total sales value with returns")
         fig = px.bar(
             df_returns, x="transaction_type", y="total_value", color="transaction_type",
-            labels={"transaction_type": "", "total_value": "Value ($)"},
+            labels={"transaction_type": "", "total_value": "Value (INR)"},
             color_discrete_sequence=[VOGUE['ink'], VOGUE['accent']],
         )
         fig.update_layout(showlegend=False)
@@ -841,7 +860,7 @@ with tab4:
 
 # ── Tab 5: Customers ──
 with tab5:
-    df_top_cust = load_top_customers(top_n)
+    df_top_cust = to_inr(load_top_customers(top_n))
     if not df_top_cust.empty:
         st.markdown(f"### Top {top_n} Customers by Lifetime Value")
         chart_subtitle("Highest-spending customers with their purchase history")
@@ -849,12 +868,12 @@ with tab5:
             df_top_cust.rename(columns={
                 "customer_id": "ID", "name": "Name", "country": "Country",
                 "gender": "Gender", "age": "Age", "total_orders": "Orders",
-                "lifetime_value": "Lifetime Value ($)",
+                "lifetime_value": "Lifetime Value (INR)",
             }),
             use_container_width=True, hide_index=True,
         )
 
-    df_demo = load_demographics()
+    df_demo = to_inr(load_demographics())
     if not df_demo.empty:
         col1, col2 = st.columns(2)
         with col1:
@@ -863,7 +882,7 @@ with tab5:
             df_g = df_demo.groupby("gender")["revenue"].sum().reset_index()
             fig = px.bar(
                 df_g, x="gender", y="revenue", color="gender",
-                labels={"gender": "", "revenue": "Revenue ($)"},
+                labels={"gender": "", "revenue": "Revenue (INR)"},
                 color_discrete_sequence=[VOGUE['accent'], VOGUE['ink'], "#FFB8CE"],
             )
             fig.update_layout(showlegend=False)
@@ -875,7 +894,7 @@ with tab5:
             fig = px.bar(
                 df_a, x="age_group", y="revenue",
                 color="revenue", color_continuous_scale=["#FFE5EE", VOGUE['accent']],
-                labels={"age_group": "", "revenue": "Revenue ($)"},
+                labels={"age_group": "", "revenue": "Revenue (INR)"},
             )
             fig.update_layout(coloraxis_showscale=False)
             st.plotly_chart(style_fig(fig, 350), use_container_width=True)
@@ -911,7 +930,7 @@ with tab6:
 
 # ── Tab 7: Patterns ──
 with tab7:
-    df_yoy = load_yoy()
+    df_yoy = to_inr(load_yoy())
     if not df_yoy.empty:
         st.markdown("### Year-over-Year Comparison")
         chart_subtitle("Compare monthly revenue across years to spot trends and seasonality")
@@ -929,7 +948,7 @@ with tab7:
                 line=dict(width=3, color=year_colors.get(year, VOGUE['accent_dk'])),
                 marker=dict(size=8),
             ))
-        fig.update_layout(xaxis_title="", yaxis_title="Revenue ($)", hovermode="x unified")
+        fig.update_layout(xaxis_title="", yaxis_title="Revenue (INR)", hovermode="x unified")
         st.plotly_chart(style_fig(fig, 400), use_container_width=True)
 
     df_dow = load_dow_heatmap()
