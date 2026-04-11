@@ -2,7 +2,7 @@
 
 A business intelligence dashboard for a multinational fashion retailer. Built with MySQL, FastAPI, and Streamlit.
 
-**[ Live Demo](https://fashion-trend-dashboard.streamlit.app)**
+**[ Live Demo](https://fashion-trend-dashboard-3ji9rneffsvhdnrzcehj5r.streamlit.app/)**
 
 ---
 
